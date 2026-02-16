@@ -11,10 +11,17 @@ def create_app() -> tk.Tk:
     load_dotenv()
     root = tk.Tk()
     root.title("Racing Form ETL")
-    root.geometry("980x700")
+    root.geometry("1040x760")
+
+    style = ttk.Style(root)
+    if "vista" in style.theme_names():
+        style.theme_use("vista")
+    elif "clam" in style.theme_names():
+        style.theme_use("clam")
+    style.configure("Accent.TLabel", font=("Segoe UI", 9, "bold"))
 
     notebook = ttk.Notebook(root)
-    notebook.pack(fill="both", expand=True)
+    notebook.pack(fill="both", expand=True, padx=8, pady=8)
 
     api_tab = APITab(notebook)
     notebook.add(api_tab, text="API")

@@ -4,7 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 from threading import Event
-from typing import Any
+from typing import Any, Callable
 
 from racing_form_etl.api.the_racing_api_client import TheRacingAPIClient
 from racing_form_etl.config import get_api_credentials
@@ -114,6 +114,8 @@ def ingest_api_day(
     cancel_event: Event | None = None,
     outdir: str = "output",
     client: TheRacingAPIClient | None = None,
+    progress_cb: Callable[[str, float], None] | None = None,
+    minimal_payload: bool = False,
 ) -> dict[str, Any]:
     ensure_db(db_path)
     Path(outdir).mkdir(parents=True, exist_ok=True)
@@ -133,11 +135,22 @@ def ingest_api_day(
 
     username, password, api_key = get_api_credentials()
     api_client = client or TheRacingAPIClient(username=username or "", password=password or "", api_key=api_key)
+    if progress_cb:
+        progress_cb("Auth check", 10)
+        progress_cb("Discover", 20)
 
-    racecards = api_client.fetch_daily_racecards(date, countries, cancel_event=cancel_event)
+    racecards = (
+        api_client.fetch_daily_racecard_summaries(date, countries, cancel_event=cancel_event)
+        if minimal_payload
+        else api_client.fetch_daily_racecards(date, countries, cancel_event=cancel_event)
+    )
+    if progress_cb:
+        progress_cb("Fetch summaries", 45)
     if cancel_event and cancel_event.is_set():
         return report
     results = api_client.fetch_daily_results(date, countries, cancel_event=cancel_event)
+    if progress_cb:
+        progress_cb("Fetch details", 65)
 
     meetings = _extract_list(racecards)
     results_rows = _extract_list(results)
@@ -264,7 +277,11 @@ def ingest_api_day(
             report["counts"]["entities"] += 1
             report["counts"]["kv_pairs"] += _upsert_entity(conn, "result", race_id, row, race_id, date, None)
         conn.commit()
+    if progress_cb:
+        progress_cb("Write DB", 90)
 
     out_path = Path(outdir) / f"ingest_report_{date}.json"
     out_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    if progress_cb:
+        progress_cb("Report", 100)
     return report
