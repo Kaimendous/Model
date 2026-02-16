@@ -1,0 +1,9 @@
+.env
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+*.sqlite
+output/
+src/*.egg-info/
+src/racing_form_etl.egg-info/

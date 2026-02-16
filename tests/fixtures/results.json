@@ -1,0 +1,14 @@
+{
+  "results": [
+    {
+      "race_id": "r1",
+      "status": "finished",
+      "winner_runner_id": "ru1",
+      "finish_order": [
+        {"runner_id": "ru1", "position": 1},
+        {"runner_id": "ru2", "position": 2}
+      ],
+      "official_time": 70.2
+    }
+  ]
+}
