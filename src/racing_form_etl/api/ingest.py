@@ -110,7 +110,7 @@ def _infer_entity_type(obj: dict[str, Any]) -> str | None:
 def ingest_api_day(
     db_path: str,
     date: str,
-    countries: list[str],
+    regions: list[str],
     cancel_event: Event | None = None,
     outdir: str = "output",
     client: TheRacingAPIClient | None = None,
@@ -121,7 +121,7 @@ def ingest_api_day(
     Path(outdir).mkdir(parents=True, exist_ok=True)
     report: dict[str, Any] = {
         "date": date,
-        "countries": countries,
+        "regions": regions,
         "counts": {
             "meetings": 0,
             "races": 0,
@@ -140,15 +140,22 @@ def ingest_api_day(
         progress_cb("Discover", 20)
 
     racecards = (
-        api_client.fetch_daily_racecard_summaries(date, countries, cancel_event=cancel_event)
+        api_client.fetch_daily_racecard_summaries(date, regions, cancel_event=cancel_event)
         if minimal_payload
-        else api_client.fetch_daily_racecards(date, countries, cancel_event=cancel_event)
+        else api_client.fetch_daily_racecards(date, regions, cancel_event=cancel_event)
     )
     if progress_cb:
         progress_cb("Fetch summaries", 45)
     if cancel_event and cancel_event.is_set():
         return report
-    results = api_client.fetch_daily_results(date, countries, cancel_event=cancel_event)
+    results: Any = {"results": []}
+    try:
+        results = api_client.fetch_daily_results(date, regions, cancel_event=cancel_event)
+    except Exception as exc:
+        if "standard" in str(exc).lower() and "plan" in str(exc).lower():
+            report["errors"].append("Results endpoint unavailable on current plan; ingesting racecards only.")
+        else:
+            raise
     if progress_cb:
         progress_cb("Fetch details", 65)
 
@@ -161,7 +168,7 @@ def ingest_api_day(
                 break
             meeting_id = _get_id(meeting, ["meeting_id", "track_id", "venue_id"]) or f"m_{date}_{report['counts']['meetings']}"
             meeting_date = str(meeting.get("meeting_date") or meeting.get("date") or date)
-            country = str(meeting.get("country") or (countries[0] if countries else ""))
+            country = str(meeting.get("country") or (regions[0] if regions else ""))
             venue = str(meeting.get("venue") or meeting.get("track") or "")
             conn.execute(
                 """

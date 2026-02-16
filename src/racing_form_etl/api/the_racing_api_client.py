@@ -75,13 +75,15 @@ class TheRacingAPIClient:
                     if 200 <= resp.status_code < 300:
                         self._last_request_at = time.monotonic()
                         return resp.json()
+                    if resp.status_code == 401 and "basic plan required" in (resp.text or "").lower():
+                        raise RuntimeError("Basic plan needed for racecard summaries on TheRacingAPI.")
                     if resp.status_code in {429, 500, 502, 503, 504} and attempt < self.max_retries:
                         self._sleep_with_cancel(backoff + random.uniform(0.0, 0.4), cancel_event)
                         backoff *= 2
                         continue
                     resp.raise_for_status()
                 else:
-                    query = urllib.parse.urlencode(params or {})
+                    query = urllib.parse.urlencode(params or {}, doseq=True)
                     req_url = f"{url}?{query}" if query else url
                     token = base64.b64encode(f"{self.username}:{self.password}".encode("utf-8")).decode("ascii")
                     req_headers = {
@@ -95,6 +97,10 @@ class TheRacingAPIClient:
                         self._last_request_at = time.monotonic()
                         return json.loads(body)
             except Exception as exc:
+                if getattr(exc, "code", None) == 401:
+                    reason = getattr(exc, "reason", "")
+                    if "basic plan required" in str(reason).lower() or "basic plan required" in str(exc).lower():
+                        raise RuntimeError("Basic plan needed for racecard summaries on TheRacingAPI.") from exc
                 code = getattr(exc, "code", None)
                 retryable = code in {429, 500, 502, 503, 504} or isinstance(
                     exc,
@@ -109,22 +115,22 @@ class TheRacingAPIClient:
                 backoff *= 2
         raise RuntimeError("Unexpected retry loop exit")
 
-    def fetch_daily_racecards(self, date: str, countries: list[str], cancel_event: Event | None = None) -> Any:
-        return self._request("GET", "racecards", params={"date": date, "country": ",".join(countries)}, cancel_event=cancel_event)
+    def fetch_daily_racecards(self, date: str, regions: list[str], cancel_event: Event | None = None) -> Any:
+        return self.fetch_daily_racecard_summaries(date, regions, cancel_event=cancel_event)
 
-    def fetch_daily_racecard_summaries(self, date: str, countries: list[str], cancel_event: Event | None = None) -> Any:
-        params = {"date": date, "country": ",".join(countries)}
-        try:
-            return self._request("GET", "racecards/summaries", params=params, cancel_event=cancel_event)
-        except Exception:
-            return self.fetch_daily_racecards(date, countries, cancel_event=cancel_event)
+    def fetch_daily_racecard_summaries(self, date: str, regions: list[str], cancel_event: Event | None = None) -> Any:
+        params = {"date": date, "region_codes[]": [normalize_region_code(region) for region in regions]}
+        return self._request("GET", "racecards/summaries", params=params, cancel_event=cancel_event)
 
-    def fetch_daily_results(self, date: str, countries: list[str], cancel_event: Event | None = None) -> Any:
-        return self._request("GET", "results", params={"date": date, "country": ",".join(countries)}, cancel_event=cancel_event)
+    def fetch_daily_results(self, date: str, regions: list[str], cancel_event: Event | None = None) -> Any:
+        return self._request("GET", "results", params={"date": date, "country": ",".join(regions)}, cancel_event=cancel_event)
+
+    def fetch_course_regions(self, cancel_event: Event | None = None) -> Any:
+        return self._request("GET", "courses/regions", cancel_event=cancel_event)
 
     def probe_capabilities(self, date: str | None = None, regions: list[str] | None = None, cancel_event: Event | None = None) -> dict[str, Any]:
         probe_date = date or date_cls.today().isoformat()
-        probe_regions = regions or ["gb"]
+        probe_regions = [normalize_region_code(region) for region in (regions or ["gb"])]
         result = {
             "auth_ok": False,
             "can_racecards": False,
@@ -133,7 +139,7 @@ class TheRacingAPIClient:
             "available_regions": [],
         }
         try:
-            self.fetch_daily_results(probe_date, probe_regions, cancel_event=cancel_event)
+            self.fetch_course_regions(cancel_event=cancel_event)
             result["auth_ok"] = True
         except Exception as exc:
             result["plan_message"] = _capability_message(exc)
@@ -173,8 +179,25 @@ def _capability_message(exc: Exception) -> str:
     text_lower = text.lower()
     if "basic" in text_lower and "plan" in text_lower:
         return "Basic plan restriction detected for this endpoint."
+    if "standard" in text_lower and "plan" in text_lower:
+        return "Standard plan restriction detected for non-racecard endpoints."
     if "forbidden" in text_lower or "401" in text_lower or "403" in text_lower:
         return "Authentication failed. Check API credentials."
     if "rate" in text_lower and "limit" in text_lower:
         return "Rate-limited by API. Throttling is active at 2 requests/sec."
     return text[:200]
+
+
+def normalize_region_code(region: str) -> str:
+    normalized = region.strip().lower()
+    mapping = {
+        "gb": "gb",
+        "gbr": "gb",
+        "uk": "gb",
+        "ire": "ire",
+        "ie": "ire",
+        "irl": "ire",
+        "hk": "hk",
+        "hkg": "hk",
+    }
+    return mapping.get(normalized, normalized)
