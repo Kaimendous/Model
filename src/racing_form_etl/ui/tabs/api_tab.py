@@ -196,7 +196,11 @@ class APITab(ttk.Frame):
         )
 
     def _regions(self) -> list[str]:
-        return [x.strip().lower() for x in self.region_var.get().split(",") if x.strip()]
+        regions = [x.strip().lower() for x in self.region_var.get().split(",") if x.strip()]
+        normalized_csv = ",".join(regions)
+        if normalized_csv != self.region_var.get().strip():
+            self.region_var.set(normalized_csv)
+        return regions
 
     def _pick_db(self) -> None:
         path = filedialog.asksaveasfilename(defaultextension=".sqlite")
@@ -275,11 +279,14 @@ class APITab(ttk.Frame):
         self._run_bg(self._worker_discover, "discover racecards")
 
     def _worker_test_connection(self) -> str:
-        caps = self._client().probe_capabilities(self.date_var.get().strip(), self._regions()[:1] or ["gb"], cancel_event=self.cancel_event)
+        client = self._client()
+        client.fetch_course_regions(cancel_event=self.cancel_event)
+        caps = dict(self.capabilities)
+        caps["auth_ok"] = True
+        if not caps.get("plan_message"):
+            caps["plan_message"] = "Connection successful."
         self.msg_queue.put(("caps", {"caps": caps}))
-        if caps["auth_ok"]:
-            return "Connection successful"
-        raise RuntimeError(str(caps["plan_message"]))
+        return "Connection successful"
 
     def _worker_detect_capabilities(self) -> str:
         caps = self._client().probe_capabilities(self.date_var.get().strip(), self._regions() or ["gb", "ire", "hk"], cancel_event=self.cancel_event)
