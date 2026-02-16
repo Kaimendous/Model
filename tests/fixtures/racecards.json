@@ -1,0 +1,46 @@
+{
+  "data": [
+    {
+      "meeting_id": "m1",
+      "meeting_date": "2025-01-01",
+      "country": "AU",
+      "venue": "Randwick",
+      "track_condition": "GOOD",
+      "weather": {"temp": 25, "wind": "NW"},
+      "races": [
+        {
+          "race_id": "r1",
+          "race_no": 1,
+          "scheduled_start_time": "2025-01-01T13:00:00",
+          "distance": 1200,
+          "class": "BM64",
+          "surface": "TURF",
+          "runners": [
+            {
+              "runner_id": "ru1",
+              "runner_name": "Fast One",
+              "barrier": 1,
+              "weight": 56.5,
+              "jockey": {"id": "j1", "name": "J Smith", "strike_rate": 0.21},
+              "trainer": {"id": "t1", "name": "A Trainer", "stable_win_pct": 0.18},
+              "horse": {"id": "h1", "sex": "G", "age": 4, "rating": 88},
+              "speed_rating": 94,
+              "form": {"last_10": [{"position": 1}, {"position": 3}]}
+            },
+            {
+              "runner_id": "ru2",
+              "runner_name": "Steady Two",
+              "barrier": 5,
+              "weight": 58.0,
+              "jockey": {"id": "j2", "name": "B Lane", "strike_rate": 0.15},
+              "trainer": {"id": "t2", "name": "B Trainer", "stable_win_pct": 0.11},
+              "horse": {"id": "h2", "sex": "M", "age": 5, "rating": 84},
+              "speed_rating": 89,
+              "form": {"last_10": [{"position": 2}, {"position": 5}]}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
